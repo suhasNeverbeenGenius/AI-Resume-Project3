@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Resume Builder</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React and Babel for running React in the browser -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- jsPDF and html2canvas for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Lora:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .resume-preview {
+            font-family: 'Lora', serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- Main App Component ---
+        function App() {
+            // State to hold all resume data
+            const [resumeData, setResumeData] = useState({
+                fullName: 'Your Name',
+                jobTitle: 'Aspiring Developer',
+                email: 'your.email@example.com',
+                linkedin: 'linkedin.com/in/yourprofile',
+                location: 'City, State',
+                summary: 'A brief professional summary. Click the AI button to generate a new one!',
+                experience: [
+                    {
+                        id: 1,
+                        company: 'Tech Solutions Inc.',
+                        role: 'Software Engineer Intern',
+                        date: 'May 2023 - Aug 2023',
+                        description: '• Developed and maintained web applications using React and Node.js.\n• Collaborated with a team of developers to ship new features.\n• Wrote unit and integration tests to ensure code quality.'
+                    }
+                ],
+                education: [
+                    {
+                        id: 1,
+                        school: 'University of Technology',
+                        degree: 'Bachelor of Science in Computer Science',
+                        date: 'Graduated May 2024'
+                    }
+                ],
+                skills: 'React, Node.js, JavaScript, HTML, CSS, Git, MongoDB',
+                certifications: [
+                    {
+                        id: 1,
+                        name: 'Certified JavaScript Developer',
+                        issuer: 'Tech Certs Inc.',
+                        date: 'Issued Jan 2024'
+                    }
+                ],
+                projects: [
+                    {
+                        id: 1,
+                        name: 'AI Resume Builder',
+                        link: 'github.com/your-repo',
+                        description: '• A web application that leverages AI to help users craft professional resumes.\n• Built with React for the frontend and Node.js for the backend.'
+                    }
+                ]
+            });
+
+            // --- AI Generation Logic ---
+            const [generatingItemId, setGeneratingItemId] = useState(null); 
+            // --- ATS Score State ---
+            const [isAtsModalOpen, setIsAtsModalOpen] = useState(false);
+            const [isCalculating, setIsCalculating] = useState(false);
+            const [atsScore, setAtsScore] = useState(null);
+
+
+            const handleGenerateSummary = async () => {
+                setGeneratingItemId('summary');
+                try {
+                    const response = await fetch('http://localhost:5001/api/generate-summary', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ experience: resumeData.experience, skills: resumeData.skills })
+                    });
+                    if (!response.ok) throw new Error('Network response was not ok.');
+                    const data = await response.json();
+                    setResumeData(prevData => ({ ...prevData, summary: data.summary }));
+                } catch (error) {
+                    console.error("Failed to generate summary:", error);
+                    alert("Failed to generate summary. Make sure your backend server is running.");
+                } finally {
+                    setGeneratingItemId(null);
+                }
+            };
+
+            const handleGenerateExperienceDesc = async (expId) => {
+                setGeneratingItemId(`exp-${expId}`);
+                const experienceItem = resumeData.experience.find(e => e.id === expId);
+                try {
+                    const response = await fetch('http://localhost:5001/api/generate-experience', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ role: experienceItem.role, company: experienceItem.company })
+                    });
+                    if (!response.ok) throw new Error('Network response was not ok.');
+                    const data = await response.json();
+                    setResumeData(prevData => ({
+                        ...prevData,
+                        experience: prevData.experience.map(exp =>
+                            exp.id === expId ? { ...exp, description: data.description } : exp
+                        )
+                    }));
+                } catch (error) {
+                    console.error("Failed to generate experience description:", error);
+                    alert("Failed to generate description. Make sure your backend server is running.");
+                } finally {
+                    setGeneratingItemId(null);
+                }
+            };
+            
+            const handleGenerateProjectDesc = async (projId) => {
+                setGeneratingItemId(`proj-${projId}`);
+                const projectItem = resumeData.projects.find(p => p.id === projId);
+                try {
+                    const response = await fetch('http://localhost:5001/api/generate-project', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: projectItem.name })
+                    });
+                    if (!response.ok) throw new Error('Network response was not ok.');
+                    const data = await response.json();
+                    setResumeData(prevData => ({
+                        ...prevData,
+                        projects: prevData.projects.map(proj =>
+                            proj.id === projId ? { ...proj, description: data.description } : proj
+                        )
+                    }));
+                } catch (error) {
+                    console.error("Failed to generate project description:", error);
+                    alert("Failed to generate description. Make sure your backend server is running.");
+                } finally {
+                    setGeneratingItemId(null);
+                }
+            };
+
+            // --- DYNAMIC SECTION ADD/REMOVE LOGIC ---
+            const addItem = (section) => {
+                const newItem = {
+                    experience: { id: Date.now(), company: '', role: '', date: '', description: '• ' },
+                    projects: { id: Date.now(), name: '', link: '', description: '• ' },
+                    education: { id: Date.now(), school: '', degree: '', date: '' },
+                    certifications: { id: Date.now(), name: '', issuer: '', date: '' }
+                };
+                setResumeData(prev => ({
+                    ...prev,
+                    [section]: [...prev[section], newItem[section]]
+                }));
+            };
+
+            const removeItem = (section, id) => {
+                setResumeData(prev => ({
+                    ...prev,
+                    [section]: prev[section].filter(item => item.id !== id)
+                }));
+            };
+            
+            const handleCalculateAtsScore = async (jobDescription, resumeFile) => {
+                setIsCalculating(true);
+                setAtsScore(null);
+
+                const formData = new FormData();
+                formData.append('resume', resumeFile);
+                formData.append('jobDescription', jobDescription);
+
+                try {
+                    const response = await fetch('http://localhost:5001/api/calculate-ats', {
+                        method: 'POST',
+                        body: formData,
+                    });
+                    if (!response.ok) throw new Error('Network response was not ok.');
+                    const data = await response.json();
+                    setAtsScore(data.score);
+                } catch (error) {
+                    console.error("Failed to calculate ATS score:", error);
+                    alert("Failed to calculate score. Make sure your backend server is running.");
+                } finally {
+                    setIsCalculating(false);
+                }
+            };
+            
+            const handleDownloadPdf = () => {
+                const resumeElement = document.getElementById('resume-preview');
+                const { jsPDF } = window.jspdf;
+
+                html2canvas(resumeElement, {
+                    scale: 4, 
+                    useCORS: true,
+                    logging: false, 
+                }).then(canvas => {
+                    const imgData = canvas.toDataURL('image/png');
+                    const pdf = new jsPDF({
+                        orientation: 'portrait',
+                        unit: 'mm',
+                        format: 'a4'
+                    });
+
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+                    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+                    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                    pdf.save(`${resumeData.fullName.replace(' ', '-')}-Resume.pdf`);
+                });
+            };
+
+
+            return (
+                <div className="min-h-screen">
+                    <header className="bg-white shadow-md">
+                        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+                            <div className="flex items-center">
+                                <svg className="w-8 h-8 mr-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                <h1 className="text-2xl font-bold text-gray-800">AI Resume Builder</h1>
+                            </div>
+                             <div className="flex items-center gap-4">
+                                <button
+                                    onClick={() => setIsAtsModalOpen(true)}
+                                    className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition duration-300"
+                                >
+                                    ATS Score Checker
+                                </button>
+                                <button onClick={handleDownloadPdf} className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-300">
+                                    Download PDF
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="container mx-auto p-4 mt-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <ResumeForm
+                                data={resumeData}
+                                setData={setResumeData}
+                                onGenerateSummary={handleGenerateSummary}
+                                onGenerateExperienceDesc={handleGenerateExperienceDesc}
+                                onGenerateProjectDesc={handleGenerateProjectDesc}
+                                generatingItemId={generatingItemId}
+                                onAddItem={addItem}
+                                onRemoveItem={removeItem}
+                            />
+                            <ResumePreview data={resumeData} />
+                        </div>
+                    </main>
+
+                    <AtsCheckerModal
+                        isOpen={isAtsModalOpen}
+                        onClose={() => {
+                            setIsAtsModalOpen(false);
+                            setAtsScore(null);
+                        }}
+                        onCalculate={handleCalculateAtsScore}
+                        isCalculating={isCalculating}
+                        score={atsScore}
+                    />
+                </div>
+            );
+        }
+        
+        function AtsCheckerModal({ isOpen, onClose, onCalculate, isCalculating, score }) {
+            const [jobDescription, setJobDescription] = useState('');
+            const [resumeFile, setResumeFile] = useState(null);
+            const [fileName, setFileName] = useState('');
+
+            const handleFileChange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    setResumeFile(file);
+                    setFileName(file.name);
+                }
+            };
+            
+            const handleCalculateClick = () => {
+                if (!jobDescription || !resumeFile) {
+                    alert("Please upload a resume and paste a job description.");
+                    return;
+                }
+                onCalculate(jobDescription, resumeFile);
+            }
+
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
+                    <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-2xl transform transition-all">
+                        <div className="flex justify-between items-center border-b pb-3">
+                            <h2 className="text-2xl font-bold text-gray-800">ATS Score Predictor</h2>
+                            <button onClick={onClose} className="text-gray-500 hover:text-gray-800 text-3xl font-light">&times;</button>
+                        </div>
+                        
+                        <div className="mt-6">
+                            <p className="text-gray-600 mb-6">Upload your resume and paste the job description below to predict your Applicant Tracking System (ATS) match score.</p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">1. Upload Your Resume</label>
+                                    <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                                        <div className="space-y-1 text-center">
+                                            <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                            <div className="flex text-sm text-gray-600"><label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none"><span>Upload a file</span><input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf,.doc,.docx" /></label><p className="pl-1">or drag and drop</p></div>
+                                            <p className="text-xs text-gray-500">PDF, DOC, DOCX</p>
+                                        </div>
+                                    </div>
+                                    {fileName && <p className="text-sm text-green-600 mt-2 truncate">File: {fileName}</p>}
+                                </div>
+
+                                <div>
+                                    <label htmlFor="job-description" className="block text-sm font-medium text-gray-700 mb-2">2. Paste Job Description</label>
+                                    <textarea id="job-description" rows="8" className="w-full p-2 border rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Paste the full job description here..." value={jobDescription} onChange={(e) => setJobDescription(e.target.value)}></textarea>
+                                </div>
+                            </div>
+
+                            <div className="mt-8 text-center">
+                                <button onClick={handleCalculateClick} disabled={isCalculating} className="w-full md:w-auto bg-green-500 text-white font-bold py-3 px-8 rounded-lg hover:bg-green-600 transition duration-300 disabled:bg-green-300 flex items-center justify-center mx-auto">
+                                    {isCalculating ? (
+                                        <><svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Calculating...</>
+                                    ) : "Calculate ATS Score"}
+                                </button>
+                            </div>
+                            
+                            {score !== null && (
+                                 <div className="mt-8 p-6 bg-gray-50 rounded-lg text-center border border-green-200">
+                                    <p className="text-lg text-gray-700">Your predicted ATS score is:</p>
+                                    <p className="text-6xl font-bold text-green-600 my-2">{score}%</p>
+                                    <p className="text-sm text-gray-500">This score estimates how well your resume matches the job description. Higher scores increase your chances of getting noticed by a recruiter.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function ResumeForm({ data, setData, onGenerateSummary, onGenerateExperienceDesc, onGenerateProjectDesc, generatingItemId, onAddItem, onRemoveItem }) {
+            const handleInputChange = (e) => {
+                const { name, value } = e.target;
+                setData(prev => ({ ...prev, [name]: value }));
+            };
+
+            const handleItemChange = (section, id, e) => {
+                const { name, value } = e.target;
+                const newItems = data[section].map(item =>
+                    item.id === id ? { ...item, [name]: value } : item
+                );
+                setData(prev => ({ ...prev, [section]: newItems }));
+            };
+
+            const AddItemButton = ({ section }) => (
+                <button
+                    onClick={() => onAddItem(section)}
+                    className="w-full text-center py-2 mt-2 bg-green-100 text-green-700 font-semibold rounded-lg hover:bg-green-200 transition-colors"
+                >
+                    + Add {section.charAt(0).toUpperCase() + section.slice(1, -1)}
+                </button>
+            );
+
+            const AIGenerateButton = ({ onClick, isGenerating }) => (
+                <button
+                    onClick={onClick}
+                    disabled={!!generatingItemId}
+                    className="mt-2 text-sm bg-purple-600 text-white font-semibold py-1 px-3 rounded-md hover:bg-purple-700 transition duration-300 disabled:bg-purple-300 flex items-center"
+                >
+                    {isGenerating ? (
+                        <><svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Generating...</>
+                    ) : "✨ Generate with AI"}
+                </button>
+            );
+
+            return (
+                <div className="bg-white p-6 rounded-lg shadow-md">
+                    <h2 className="text-xl font-bold mb-4 border-b pb-2">Personal Information</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <input type="text" name="fullName" value={data.fullName} onChange={handleInputChange} placeholder="Full Name" className="p-2 border rounded-md" />
+                        <input type="text" name="jobTitle" value={data.jobTitle} onChange={handleInputChange} placeholder="Job Title" className="p-2 border rounded-md" />
+                        <input type="email" name="email" value={data.email} onChange={handleInputChange} placeholder="Email" className="p-2 border rounded-md" />
+                        <input type="text" name="linkedin" value={data.linkedin} onChange={handleInputChange} placeholder="LinkedIn Profile URL" className="p-2 border rounded-md" />
+                        <input type="text" name="location" value={data.location} onChange={handleInputChange} placeholder="Location" className="p-2 border rounded-md col-span-2" />
+                    </div>
+
+                    <h2 className="text-xl font-bold mb-2 border-b pb-2">Professional Summary</h2>
+                     <div className="flex items-center gap-4 mb-4">
+                         <AIGenerateButton onClick={onGenerateSummary} isGenerating={generatingItemId === 'summary'} />
+                    </div>
+                    <textarea name="summary" value={data.summary} onChange={handleInputChange} placeholder="Professional Summary" className="w-full p-2 border rounded-md mb-4 h-32" />
+
+                    <h2 className="text-xl font-bold mb-4 border-b pb-2">Work Experience</h2>
+                    {data.experience.map(exp => (
+                        <div key={exp.id} className="mb-4 p-4 border rounded-lg bg-gray-50 relative">
+                            {data.experience.length > 1 && (
+                                <button onClick={() => onRemoveItem('experience', exp.id)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500 font-bold text-xl" title="Remove Experience">&times;</button>
+                            )}
+                            <input type="text" name="role" value={exp.role} onChange={(e) => handleItemChange('experience', exp.id, e)} placeholder="Role" className="p-2 border rounded-md w-full mb-2 font-semibold" />
+                            <div className="flex gap-4">
+                                <input type="text" name="company" value={exp.company} onChange={(e) => handleItemChange('experience', exp.id, e)} placeholder="Company" className="p-2 border rounded-md w-1/2 mb-2" />
+                                <input type="text" name="date" value={exp.date} onChange={(e) => handleItemChange('experience', exp.id, e)} placeholder="Date (e.g., Jan 2022 - Present)" className="p-2 border rounded-md w-1/2 mb-2" />
+                            </div>
+                            <textarea name="description" value={exp.description} onChange={(e) => handleItemChange('experience', exp.id, e)} placeholder="Description" className="w-full p-2 border rounded-md h-28" />
+                            <AIGenerateButton onClick={() => onGenerateExperienceDesc(exp.id)} isGenerating={generatingItemId === `exp-${exp.id}`} />
+                        </div>
+                    ))}
+                    <AddItemButton section="experience" />
+
+                    <h2 className="text-xl font-bold my-4 border-b pb-2">Projects</h2>
+                    {data.projects.map(proj => (
+                        <div key={proj.id} className="mb-4 p-4 border rounded-lg bg-gray-50 relative">
+                            {data.projects.length > 1 && (
+                                <button onClick={() => onRemoveItem('projects', proj.id)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500 font-bold text-xl" title="Remove Project">&times;</button>
+                            )}
+                            <div className="flex gap-4">
+                                <input type="text" name="name" value={proj.name} onChange={(e) => handleItemChange('projects', proj.id, e)} placeholder="Project Name" className="p-2 border rounded-md w-1/2 mb-2 font-semibold" />
+                                <input type="text" name="link" value={proj.link} onChange={(e) => handleItemChange('projects', proj.id, e)} placeholder="Project Link (e.g., github.com/repo)" className="p-2 border rounded-md w-1/2 mb-2" />
+                            </div>
+                            <textarea name="description" value={proj.description} onChange={(e) => handleItemChange('projects', proj.id, e)} placeholder="Project Description" className="w-full p-2 border rounded-md h-28" />
+                             <AIGenerateButton onClick={() => onGenerateProjectDesc(proj.id)} isGenerating={generatingItemId === `proj-${proj.id}`} />
+                        </div>
+                    ))}
+                    <AddItemButton section="projects" />
+                    
+                    <h2 className="text-xl font-bold my-4 border-b pb-2">Education</h2>
+                    {data.education.map(edu => (
+                        <div key={edu.id} className="mb-4 p-4 border rounded-lg bg-gray-50 relative">
+                           {data.education.length > 1 && (
+                                <button onClick={() => onRemoveItem('education', edu.id)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500 font-bold text-xl" title="Remove Education">&times;</button>
+                            )}
+                            <input type="text" name="school" value={edu.school} onChange={(e) => handleItemChange('education', edu.id, e)} placeholder="School/University" className="p-2 border rounded-md w-full mb-2 font-semibold" />
+                             <div className="flex gap-4">
+                                <input type="text" name="degree" value={edu.degree} onChange={(e) => handleItemChange('education', edu.id, e)} placeholder="Degree" className="p-2 border rounded-md w-1/2 mb-2" />
+                                <input type="text" name="date" value={edu.date} onChange={(e) => handleItemChange('education', edu.id, e)} placeholder="Date" className="p-2 border rounded-md w-1/2 mb-2" />
+                            </div>
+                        </div>
+                    ))}
+                    <AddItemButton section="education" />
+
+                    <h2 className="text-xl font-bold my-4 border-b pb-2">Skills</h2>
+                    <input type="text" name="skills" value={data.skills} onChange={handleInputChange} placeholder="Skills (comma-separated)" className="w-full p-2 border rounded-md mb-4" />
+                    
+                    <h2 className="text-xl font-bold mb-4 border-b pb-2">Certifications</h2>
+                    {data.certifications.map(cert => (
+                        <div key={cert.id} className="mb-4 p-4 border rounded-lg relative">
+                             {data.certifications.length > 1 && (
+                                <button onClick={() => onRemoveItem('certifications', cert.id)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500 font-bold text-xl" title="Remove Certification">&times;</button>
+                            )}
+                            <input type="text" name="name" value={cert.name} onChange={(e) => handleItemChange('certifications', cert.id, e)} placeholder="Certification Name" className="p-2 border rounded-md w-full mb-2 font-semibold" />
+                            <div className="flex gap-4">
+                                <input type="text" name="issuer" value={cert.issuer} onChange={(e) => handleItemChange('certifications', cert.id, e)} placeholder="Issuing Body" className="p-2 border rounded-md w-1/2 mb-2" />
+                                <input type="text" name="date" value={cert.date} onChange={(e) => handleItemChange('certifications', cert.id, e)} placeholder="Date Issued" className="p-2 border rounded-md w-1-2 mb-2" />
+                            </div>
+                        </div>
+                    ))}
+                    <AddItemButton section="certifications" />
+                </div>
+            );
+        }
+
+        // --- Resume Preview Component (REVISED FOR COMPACT LAYOUT) ---
+        function ResumePreview({ data }) {
+            return (
+                <div id="resume-preview" className="bg-white p-7 rounded-lg shadow-lg resume-preview print:shadow-none">
+                    <div className="text-center">
+                        <h1 className="text-3xl font-bold text-gray-800 uppercase tracking-wider">{data.fullName}</h1>
+                        <p className="text-md text-blue-600 font-medium">{data.jobTitle}</p>
+                        <div className="flex justify-center gap-x-3 text-xs mt-2 text-gray-600">
+                            <span>{data.email}</span>
+                            <span>|</span>
+                            <span>{data.linkedin}</span>
+                            <span>|</span>
+                            <span>{data.location}</span>
+                        </div>
+                    </div>
+
+                    <div className="mt-4">
+                        <h2 className="text-sm font-bold text-gray-800 border-b-2 border-gray-800 pb-1 mb-2 uppercase tracking-wider">Professional Summary</h2>
+                        <p className="text-gray-700 text-sm">{data.summary}</p>
+                    </div>
+
+                     <div className="mt-4">
+                        <h2 className="text-sm font-bold text-gray-800 border-b-2 border-gray-800 pb-1 mb-2 uppercase tracking-wider">Work Experience</h2>
+                        {data.experience.map(exp => (
+                            <div key={exp.id} className="mb-3">
+                                <div className="flex justify-between items-baseline">
+                                    <h3 className="text-md font-bold text-gray-900">{exp.role}</h3>
+                                    <p className="text-xs font-medium text-gray-600">{exp.date}</p>
+                                </div>
+                                <p className="text-sm font-semibold text-gray-700">{exp.company}</p>
+                                <ul className="list-disc pl-5 mt-1 text-xs text-gray-600 whitespace-pre-line">
+                                    {exp.description.split('\n').filter(line => line.trim() !== '').map((line, index) => (
+                                        <li key={index}>{line.replace('•','').trim()}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ))}
+                    </div>
+
+                     <div className="mt-4">
+                        <h2 className="text-sm font-bold text-gray-800 border-b-2 border-gray-800 pb-1 mb-2 uppercase tracking-wider">Projects</h2>
+                        {data.projects.map(proj => (
+                            <div key={proj.id} className="mb-3">
+                                <div className="flex justify-between items-baseline">
+                                    <h3 className="text-md font-bold text-gray-900">{proj.name}</h3>
+                                    <p className="text-xs font-medium text-blue-600 hover:underline">{proj.link}</p>
+                                </div>
+                                <ul className="list-disc pl-5 mt-1 text-xs text-gray-600 whitespace-pre-line">
+                                    {proj.description.split('\n').filter(line => line.trim() !== '').map((line, index) => (
+                                        <li key={index}>{line.replace('•','').trim()}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ))}
+                    </div>
+
+                     <div className="mt-4">
+                        <h2 className="text-sm font-bold text-gray-800 border-b-2 border-gray-800 pb-1 mb-2 uppercase tracking-wider">Education</h2>
+                        {data.education.map(edu => (
+                           <div key={edu.id} className="flex justify-between items-baseline">
+                                <div>
+                                    <h3 className="text-md font-bold text-gray-900">{edu.school}</h3>
+                                    <p className="text-sm font-semibold text-gray-700">{edu.degree}</p>
+                                </div>
+                                <p className="text-xs font-medium text-gray-600">{edu.date}</p>
+                           </div>
+                        ))}
+                    </div>
+
+                    <div className="mt-4">
+                        <h2 className="text-sm font-bold text-gray-800 border-b-2 border-gray-800 pb-1 mb-2 uppercase tracking-wider">Skills</h2>
+                        <p className="text-gray-700 text-sm">{data.skills}</p>
+                    </div>
+                    
+                    <div className="mt-4">
+                        <h2 className="text-sm font-bold text-gray-800 border-b-2 border-gray-800 pb-1 mb-2 uppercase tracking-wider">Certifications</h2>
+                        {data.certifications.map(cert => (
+                           <div key={cert.id} className="mb-2">
+                                <div className="flex justify-between items-baseline">
+                                    <h3 className="text-md font-bold text-gray-900">{cert.name}</h3>
+                                    <p className="text-xs font-medium text-gray-600">{cert.date}</p>
+                                </div>
+                                <p className="text-sm font-semibold text-gray-700">{cert.issuer}</p>
+                           </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        const domNode = document.getElementById('root');
+        const root = ReactDOM.createRoot(domNode);
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
